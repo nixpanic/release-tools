@@ -242,7 +242,13 @@ for bug in bzs:
     openChanges = getOpenChangesForBug(bug.id)
     mergedChanges = getMergedChangesForBug(bug.id)
 
-    for change in openChanges + mergedChanges:
+    allChanges = list()
+    if openChanges:
+        allChanges += openChanges
+    if mergedChanges:
+        allChanges += mergedChanges
+
+    for change in allChanges:
         cs = ChangeStatus(change)
         cs.setGitRepo('/tmp/gluster.org/' + cs.project)
         bs.addChangeStatus(cs)
