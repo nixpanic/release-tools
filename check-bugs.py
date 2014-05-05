@@ -27,6 +27,9 @@ GERRIT_REVIEW_Q = '/changes/%s/revisions/current/review'
 BZ_URL = 'https://bugzilla.redhat.com/xmlrpc.cgi'
 #BZ_URL = 'https://partner-bugzilla.redhat.com/xmlrpc.cgi'
 
+# working directory for the cloned git repositories
+REPO_DIR = os.getcwd()
+
 class GitRepo:
     def __init__(self, project, path):
         self.project = project
@@ -257,7 +260,7 @@ for bug in bzs:
 
     for change in allChanges:
         cs = ChangeStatus(change)
-        cs.setGitRepo('/tmp/gluster.org/' + cs.project)
+        cs.setGitRepo(os.path.join(REPO_DIR, cs.project))
         bs.addChangeStatus(cs)
 
     try:
