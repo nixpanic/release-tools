@@ -18,7 +18,7 @@ import re
 
 import os, os.path
 from os import popen
-
+from time import time
 
 GERRIT_URL  = 'https://review.gluster.org'
 GERRIT_CHANGES_Q = '/changes/?q=status:%s+topic:bug-%s'
@@ -32,7 +32,14 @@ class GitRepo:
         self.project = project
         self.path = path
         if not os.path.exists(path):
-            fd = popen('git clone http://review.gluster.org/%s %s' % (project, path))
+            fd = popen('git clone --quiet http://review.gluster.org/%s %s' % (project, path))
+        else:
+            st = os.stat(self.path)
+            ts = time()
+            # check if the repo is older than 12hr
+            if st.st_mtime < (ts + (12 * 60 * 60)):
+                os.chdir(self.path)
+                popen('git fetch --all --quiet')
 
     def findCommit(self, after, branch, changeid):
         os.chdir(self.path)
@@ -258,5 +265,5 @@ for bug in bzs:
         verbose(u'Bug #%d has been verified -> OK' % bug.id)
     except BugStateException, be:
         print(u'%s' % bs).encode('utf-8')
-        print(u'  ** %s **' % be).encode('utf-8')
+        print(u'  ** %s **\n' % be).encode('utf-8')
 
