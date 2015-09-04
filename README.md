@@ -10,5 +10,9 @@ This repository is a collection of tools/scripts used by the GlusterFS release m
 ./close-bugs.sh <file-with-bugs-to-be-closed> <version-string-for-current-release> <url-to-mailing-list-announcement>
   ```
 
-  We'll add a script to generate the bugs list file soon.
+- `release_notes.sh`
+  This script is used to generate the release notes for a release. Run it as,
+  ```
+./release_notes.sh <previous version released> <current version to be released> <path to glusterfs repository>
+  ```
 
