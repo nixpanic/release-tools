@@ -189,7 +189,7 @@ class BugStatus:
             # no changes posted: status -> NEW/ASSIGNED/CLOSED
             valid = (state in ('NEW', 'ASSIGNED', 'CLOSED'))
             if not valid:
-                raise BugStateException('No change posted, but bug is in %s' % state)
+                raise BugStateException('%s: No change posted, but bug is in %s' % (self._bug.assigned_to, state))
 
         # lowest order is what the bug should have as status
         order = -1
@@ -216,7 +216,7 @@ class BugStatus:
                 order = changeOrder
 
             if bugOrder != order:
-                raise BugStateException(error)
+                raise BugStateException('%s: %s' % (self._bug.assigned_to, error))
             else:
                 order = changeOrder
 
