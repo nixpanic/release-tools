@@ -20,7 +20,7 @@ import os, os.path
 from os import popen
 from time import time
 
-GERRIT_URL  = 'https://review.gluster.org'
+GERRIT_URL  = 'http://review.gluster.org'
 GERRIT_CHANGES_Q = '/changes/?q=status:%s+branch:%s+message:"BUG:%s"'
 GERRIT_REVIEW_Q = '/changes/%s/revisions/current/review'
 
@@ -134,6 +134,18 @@ class ChangeStatus:
         else:
             return True
 
+    def getExpectedBugStatus(self):
+        bugStatus = 'POST'
+
+        if self.isForQA():
+            bugStatus = 'ON_QA'
+        elif self.isReleased():
+            bugStatus = 'CLOSED'
+        elif self.isMerged():
+            bugStatus = 'MODIFIED'
+
+        return bugStatus
+
     def __repr__(self):
         return u'[%s] %s %s (%s)' % (self.branch, self.id, self.subject, self.status)
 
@@ -143,8 +155,11 @@ class ChangeStatus:
 class BugStateException(Exception):
     pass
 
+
 class BugStatus:
     def __init__(self, bug):
+        self._order = ('NEW', 'ASSIGNED', 'POST', 'MODIFIED', 'ON_QA', 'CLOSED')
+        """ _order does not have 'VERIFIED', use 'ON_QA' instead """
         self._bug = bug
         self._changes = list()
 
@@ -155,8 +170,20 @@ class BugStatus:
     def getChangeStates(self):
         return self._changes
 
+    def getStatusOrder(self, status):
+        # ON_QA and VERIFIED are the same for developers
+        if status == 'VERIFIED':
+            status = 'ON_QA'
+
+        for (i, s) in enumerate(self._order):
+            if status == s:
+                return i
+
+        raise BugStateException('bug status %s unknown' % status)
+
     def verifyState(self):
         state = self._bug.status
+        bugOrder = self.getStatusOrder(state)
 
         if len(self._changes) == 0:
             # no changes posted: status -> NEW/ASSIGNED/CLOSED
@@ -164,26 +191,34 @@ class BugStatus:
             if not valid:
                 raise BugStateException('No change posted, but bug is in %s' % state)
 
+        # lowest order is what the bug should have as status
+        order = -1
+
         for change in self._changes:
-            if not change.isMerged():
-                # status -> POST
-                valid = (state == 'POST')
-                error = u'Bug should be in POST, change %s is not merged yet' % change.id
+            changeStatus = change.getExpectedBugStatus()
+            changeOrder = self.getStatusOrder(changeStatus)
+
+            if change.isMerged():
+                # status -> MODIFIED
+                error = u'Bug should be MODIFIED, change %s has been merged' % change.id
             elif change.isForQA():
                 # status -> ON_QA/VERIFIED
-                valid = (state in ('ON_QA', 'VERIFIED'))
                 error = u'Bug should be ON_QA, use %s for verification of the fix' % change.tag
             elif change.isReleased():
                 # status -> CLOSED
-                valid = (state == 'CLOSED')
                 error = u'Bug should be CLOSED, %s contains a fix' % change.tag
             else:
-                # status -> MODIFIED
-                valid = (state == 'MODIFIED')
-                error = u'Change %s has been merged, but bug is not in MODIFIED' % change.id
+                # status -> POST
+                error = u'Bug should be in POST, change %s under review' % change.id
 
-            if not valid:
+            # set the order to the 1st change
+            if order == -1:
+                order = changeOrder
+
+            if bugOrder != order:
                 raise BugStateException(error)
+            else:
+                order = changeOrder
 
         return True
 
