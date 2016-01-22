@@ -201,20 +201,22 @@ class BugStatus:
 
         # lowest order is what the bug should have as status
         order = -1
+        incorrectState = None
 
         for change in validChanges:
             changeStatus = change.getExpectedBugStatus()
             changeOrder = self.getStatusOrder(changeStatus)
 
-            if change.isMerged() and state != 'MODIFIED':
-                # status -> MODIFIED
-                error = u'Bug should be MODIFIED, change %s has been merged' % change.id
+            # the order of these if-statements should be the reverse of self._order
+            if change.isReleased() and state != 'CLOSED':
+                # status -> CLOSED
+                error = u'Bug should be CLOSED, %s contains a fix' % change.tag
             elif change.isForQA() and state not in ('ON_QA', 'VERIFIED'):
                 # status -> ON_QA/VERIFIED
                 error = u'Bug should be ON_QA, use %s for verification of the fix' % change.tag
-            elif change.isReleased() and state != 'CLOSED':
-                # status -> CLOSED
-                error = u'Bug should be CLOSED, %s contains a fix' % change.tag
+            elif change.isMerged() and state != 'MODIFIED':
+                # status -> MODIFIED
+                error = u'Bug should be MODIFIED, change %s has been merged' % change.id
             else:
                 # status -> POST
                 error = u'Bug should be in POST, change %s under review' % change.id
@@ -223,10 +225,14 @@ class BugStatus:
             if order == -1:
                 order = changeOrder
 
-            if bugOrder != order:
-                raise BugStateException('%s: %s' % (self._bug.assigned_to, error))
-            else:
+            if bugOrder != order and changeOrder <= order:
+                incorrectState = BugStateException('%s: %s' % (self._bug.assigned_to, error))
+
+            if changeOrder < order:
                 order = changeOrder
+
+        if incorrectState:
+            raise incorrectState
 
         return True
 
