@@ -21,7 +21,7 @@ from os import popen
 from time import time
 
 GERRIT_URL  = 'https://review.gluster.org'
-GERRIT_CHANGES_Q = '/changes/?q=status:%s+topic:bug-%s'
+GERRIT_CHANGES_Q = '/changes/?q=status:%s+branch:%s+message:"BUG:%s"'
 GERRIT_REVIEW_Q = '/changes/%s/revisions/current/review'
 
 BZ_URL = 'https://bugzilla.redhat.com/xmlrpc.cgi'
@@ -188,7 +188,7 @@ class BugStatus:
         return True
 
     def __repr__(self):
-        s = (u'%s' % self._bug)
+        s = u'%d (%s) %s: %s' % (self._bug.id, self._bug.version, self._bug.status, self._bug.summary)
         for c in self._changes:
             s += u'\n  %s' % c
         return s
@@ -217,13 +217,13 @@ def _getGerritResponse(url):
     return loads(reply)
 
 
-def getOpenChangesForBug(bug):
-    changeUrl = GERRIT_URL + GERRIT_CHANGES_Q % ('open', bug)
+def getOpenChangesForBug(branch, bug):
+    changeUrl = GERRIT_URL + GERRIT_CHANGES_Q % ('open', branch, bug)
     return _getGerritResponse(changeUrl)
 
 
-def getMergedChangesForBug(bug):
-    changeUrl = GERRIT_URL + GERRIT_CHANGES_Q % ('merged', bug)
+def getMergedChangesForBug(branch, bug):
+    changeUrl = GERRIT_URL + GERRIT_CHANGES_Q % ('merged', branch, bug)
     return _getGerritResponse(changeUrl)
 
 
@@ -234,10 +234,33 @@ def getOpenBugs(bz):
     return bz.query(q)
 
 
+def getByTracker(bz, tracker):
+    q = bz.build_query(status=['NEW', 'ASSIGNED', 'POST', 'MODIFIED', 'ON_QA', 'VERIFIED'], blocked=tracker)
+    bzs = bz.query(q)
+
+    if not bzs:
+        return list()
+
+    # only keep the GlusterFS product BZs
+    bzs = [b for b in bzs if b.product == 'GlusterFS']
+
+    if not bzs:
+        return list()
+
+    # a tracker can be blocked by other trackers
+    addBugs = list()
+    addBugs.extend(bzs)
+    for b in bzs:
+        addBugs.extend(getByTracker(bz, '%d' % b.id))
+
+    return addBugs
+
+
 bz = Bugzilla(url=BZ_URL)
 bzs = getOpenBugs(bz)
 #bzs = [bz.getbug(765051)]
 #bzs = [bz.getbug(841617)]
+#bzs = getByTracker(bz, 'glusterfs-3.7.0')
 
 bugs = list()
 
@@ -249,8 +272,15 @@ for bug in bzs:
     bs = BugStatus(bug)
     bugs.append(bs)
 
-    openChanges = getOpenChangesForBug(bug.id)
-    mergedChanges = getMergedChangesForBug(bug.id)
+    # by default, match any branch
+    branch = '^.*'
+    if bug.version == 'mainline':
+        branch = 'master'
+    elif re.match('(\d\.?)+', bug.version):
+        branch = 'release-%s' % (bug.version[:3])
+
+    openChanges = getOpenChangesForBug(branch, bug.id)
+    mergedChanges = getMergedChangesForBug(branch, bug.id)
 
     allChanges = list()
     if openChanges:
