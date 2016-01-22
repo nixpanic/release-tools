@@ -99,6 +99,9 @@ class ChangeStatus:
     def isMerged(self):
         return (self.status == 'MERGED')
 
+    def isAbandoned(self):
+        return (self.status == 'ABANDONED')
+
     def setGitRepo(self, path):
         repo = GitRepo(self.project, path)
         self.repo = repo
@@ -191,20 +194,25 @@ class BugStatus:
             if not valid:
                 raise BugStateException('%s: No change posted, but bug is in %s' % (self._bug.assigned_to, state))
 
+        # check if all changes for this bug have been abandoned
+        validChanges = [c for c in self._changes if not c.isAbandoned()]
+        if state not in ('NEW', 'ASSIGNED', 'CLOSED') and len(validChanges) == 0:
+            raise BugStateException('%s: Bug is in %s, but all changes have been abandoned' % (self._bug.assigned_to, state))
+
         # lowest order is what the bug should have as status
         order = -1
 
-        for change in self._changes:
+        for change in validChanges:
             changeStatus = change.getExpectedBugStatus()
             changeOrder = self.getStatusOrder(changeStatus)
 
-            if change.isMerged():
+            if change.isMerged() and state != 'MODIFIED':
                 # status -> MODIFIED
                 error = u'Bug should be MODIFIED, change %s has been merged' % change.id
-            elif change.isForQA():
+            elif change.isForQA() and state not in ('ON_QA', 'VERIFIED'):
                 # status -> ON_QA/VERIFIED
                 error = u'Bug should be ON_QA, use %s for verification of the fix' % change.tag
-            elif change.isReleased():
+            elif change.isReleased() and state != 'CLOSED':
                 # status -> CLOSED
                 error = u'Bug should be CLOSED, %s contains a fix' % change.tag
             else:
@@ -257,8 +265,8 @@ def getOpenChangesForBug(branch, bug):
     return _getGerritResponse(changeUrl)
 
 
-def getMergedChangesForBug(branch, bug):
-    changeUrl = GERRIT_URL + GERRIT_CHANGES_Q % ('merged', branch, bug)
+def getClosedChangesForBug(branch, bug):
+    changeUrl = GERRIT_URL + GERRIT_CHANGES_Q % ('closed', branch, bug)
     return _getGerritResponse(changeUrl)
 
 
@@ -315,13 +323,13 @@ for bug in bzs:
         branch = 'release-%s' % (bug.version[:3])
 
     openChanges = getOpenChangesForBug(branch, bug.id)
-    mergedChanges = getMergedChangesForBug(branch, bug.id)
+    closedChanges = getClosedChangesForBug(branch, bug.id)
 
     allChanges = list()
     if openChanges:
         allChanges += openChanges
-    if mergedChanges:
-        allChanges += mergedChanges
+    if closedChanges:
+        allChanges += closedChanges
 
     for change in allChanges:
         cs = ChangeStatus(change)
