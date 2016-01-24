@@ -192,12 +192,12 @@ class BugStatus:
             # no changes posted: status -> NEW/ASSIGNED/CLOSED
             valid = (state in ('NEW', 'ASSIGNED', 'CLOSED'))
             if not valid:
-                raise BugStateException('%s: No change posted, but bug is in %s' % (self._bug.assigned_to, state))
+                raise BugStateException('%s: No change posted, but bug %d is in %s' % (self._bug.assigned_to, self._bug.id, state))
 
         # check if all changes for this bug have been abandoned
         validChanges = [c for c in self._changes if not c.isAbandoned()]
         if state not in ('NEW', 'ASSIGNED', 'CLOSED') and len(validChanges) == 0:
-            raise BugStateException('%s: Bug is in %s, but all changes have been abandoned' % (self._bug.assigned_to, state))
+            raise BugStateException('%s: Bug %d is in %s, but all changes have been abandoned' % (self._bug.assigned_to, self._bug.id, state))
 
         # lowest order is what the bug should have as status
         order = -1
@@ -210,16 +210,16 @@ class BugStatus:
             # the order of these if-statements should be the reverse of self._order
             if change.isReleased() and state != 'CLOSED':
                 # status -> CLOSED
-                error = u'Bug should be CLOSED, %s contains a fix' % change.tag
+                error = u'Bug %d should be CLOSED, %s contains a fix' % (self._bug.id, change.tag)
             elif change.isForQA() and state not in ('ON_QA', 'VERIFIED'):
                 # status -> ON_QA/VERIFIED
-                error = u'Bug should be ON_QA, use %s for verification of the fix' % change.tag
+                error = u'Bug %d should be ON_QA, use %s for verification of the fix' % (self._bug.id, change.tag)
             elif change.isMerged() and state != 'MODIFIED':
                 # status -> MODIFIED
-                error = u'Bug should be MODIFIED, change %s has been merged' % change.id
+                error = u'Bug %d should be MODIFIED, change %s has been merged' % (self._bug.id, change.id)
             else:
                 # status -> POST
-                error = u'Bug should be in POST, change %s under review' % change.id
+                error = u'Bug %d should be in POST, change %s under review' % (self._bug.id, change.id)
 
             # set the order to the 1st change
             if order == -1:
