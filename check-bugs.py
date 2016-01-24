@@ -16,8 +16,7 @@ from bugzilla import Bugzilla
 
 import re
 
-import os, os.path
-from os import popen
+import os, os.path, subprocess
 from time import time
 
 GERRIT_URL  = 'http://review.gluster.org'
@@ -35,21 +34,22 @@ class GitRepo:
         self.project = project
         self.path = path
         if not os.path.exists(path):
-            fd = popen('git clone --quiet http://review.gluster.org/%s %s' % (project, path))
+            # this raises subprocess.CalledProcessError if the repo does not exist
+            cmd = 'git clone --quiet %s/%s %s' % (GERRIT_URL, project, path)
+            subprocess.check_call(cmd, shell=True)
         else:
             st = os.stat(self.path)
             ts = time()
             # check if the repo is older than 12hr
             if st.st_mtime < (ts + (12 * 60 * 60)):
                 os.chdir(self.path)
-                popen('git fetch --all --quiet')
+                subprocess.call('git fetch --all --quiet', shell=True)
 
     def findCommit(self, after, branch, changeid):
         os.chdir(self.path)
 
         cmd = 'git log --format=raw --after="%s" origin/%s | grep -E -e "^commit [[:alnum:]]+$" -e "^[[:space:]]*Change-Id:" | grep -B1 "^[[:space:]]*Change-Id: %s$"' % (after, branch, changeid)
-        fd = popen(cmd)
-        commit = fd.readline()
+        commit = subprocess.check_output(cmd, shell=True)
         if len(commit) == 0:
             return None
         return commit.split()[1]
@@ -59,14 +59,17 @@ class GitRepo:
         os.chdir(self.path)
 
         # all tags with the commit are returned in a { timestamp : hash } format
-        lines = popen('git tag --contains %s | xargs -n1 git log -1 --format="%%ct %%H"' % commit).readlines()
+        cmd = 'git tag --contains %s | xargs --no-run-if-empty -n1 git log -1 --format="%%ct %%H"' % commit
+        lines = subprocess.check_output(cmd, shell=True)
 
-        if len(lines) == 0:
+        if len(lines.strip()) == 0:
             # no tag contains this commit
             return None
 
         tags = dict()
-        for l in lines:
+        for l in lines.split('\n'):
+            if not l.strip():
+                break
             (ts, hash) = l.split()
             tags[int(ts)] = hash
 
@@ -76,13 +79,9 @@ class GitRepo:
         hash = tags[ts[-1]]
 
         # this is expected to return only one line
-        lines = popen('git describe --exact-match %s 2> /dev/null' % hash).readlines()
-
-        if len(lines) == 0:
-            # no tag contains this commit
-            return None
-
-        return lines[0].strip()
+        cmd = 'git describe --exact-match %s 2> /dev/null' % hash
+        lines = subprocess.check_output(cmd, shell=True)
+        return lines.strip()
 
 
 class ChangeStatus:
