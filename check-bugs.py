@@ -26,6 +26,11 @@ GERRIT_REVIEW_Q = '/changes/%s/revisions/current/review'
 BZ_URL = 'https://bugzilla.redhat.com/xmlrpc.cgi'
 #BZ_URL = 'https://partner-bugzilla.redhat.com/xmlrpc.cgi'
 
+# these components do not use the Gluster Gerrit instance
+BZ_COMPONENT_BLACKLIST = ( 'HDFS', 'gluster-hadoop', 'gluster-hadoop-install',
+			   'project-infrastructure', 'puppet-gluster',
+                           'website' )
+
 # working directory for the cloned git repositories
 REPO_DIR = os.getcwd()
 
@@ -314,6 +319,8 @@ bugs = list()
 
 for bug in bzs:
     if 'Tracking' in bug.keywords:
+        continue
+    elif bug.component in BZ_COMPONENT_BLACKLIST:
         continue
 
     verbose(u'checking Bug %s' % bug)
