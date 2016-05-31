@@ -53,7 +53,7 @@ class GitRepo:
     def findCommit(self, after, branch, changeid):
         os.chdir(self.path)
 
-        cmd = 'git log --format=raw --after="%s" origin/%s | grep -E -e "^commit [[:alnum:]]+$" -e "^[[:space:]]*Change-Id:" | grep -B1 "^[[:space:]]*Change-Id: %s$"' % (after, branch, changeid)
+        cmd = 'git log --format=raw --after=\'%s\' origin/%s | grep -E -e \'^commit [[:alnum:]]+$\' -e \'^[[:space:]]*Change-Id:\' | grep -B1 \'^[[:space:]]*Change-Id: %s$\'' % (after, branch, changeid)
         commit = subprocess.check_output(cmd, shell=True)
         if len(commit) == 0:
             return None
@@ -64,7 +64,7 @@ class GitRepo:
         os.chdir(self.path)
 
         # all tags with the commit are returned in a { timestamp : hash } format
-        cmd = 'git tag --contains %s | xargs --no-run-if-empty -n1 git log -1 --format="%%ct %%H"' % commit
+        cmd = 'git tag --contains %s | xargs --no-run-if-empty -n1 git log -1 --format=\'%%ct %%H\'' % commit
         lines = subprocess.check_output(cmd, shell=True)
 
         if len(lines.strip()) == 0:
