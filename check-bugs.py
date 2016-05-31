@@ -125,7 +125,7 @@ class ChangeStatus:
         return (self.tag != None)
 
     def isForQA(self):
-        ON_QA_TAGS = ['qa', 'alpha', 'beta']
+        ON_QA_TAGS = ['qa', 'alpha', 'beta', 'rc']
 
         if not self.resolveTag():
             return False
