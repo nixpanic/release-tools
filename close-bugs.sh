@@ -23,7 +23,7 @@ close_bugs()
 glusterfs-${VERSION} has been announced on the Gluster mailinglists [1], packages for several distributions should become available in the near future. Keep an eye on the Gluster Users mailinglist [2] and the update infrastructure for your distribution.
 
 [1] ${ANNOUNCEURL}
-[2] https://www.gluster.org/pipermail/gluster-users/
+[2] https://www.gluster.org/pipermail/gluster-users/"
 
 	xargs -n 8 ${DR} bugzilla modify \
 		--fixed_in=glusterfs-${VERSION} \
