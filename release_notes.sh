@@ -41,4 +41,10 @@ function main ()
     generate_release_notes $1 $2 $3;
 }
 
+if [ -z "${1}" -o "${1}" = '-h' -o "${1}" = '--help' -o ${#} != 3 ]
+then
+	echo "Usage: ${0} <base-version> <target-version|HEAD> <git-repo-dir>"
+	exit
+fi
+
 main "$@"
