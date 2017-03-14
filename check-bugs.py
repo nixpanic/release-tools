@@ -332,7 +332,8 @@ for bug in bzs:
     if bug.version == 'mainline':
         branch = 'master'
     elif re.match('(\d\.?)+', bug.version):
-        branch = 'release-%s' % (bug.version[:3])
+        # bug.version can have 2+ digits (i.e. 3.7.14), the branch has only 2
+        branch = 'release-%s' % ('.'.join(bug.version.split('.')[:2]))
 
     openChanges = getOpenChangesForBug(branch, bug.id)
     closedChanges = getClosedChangesForBug(branch, bug.id)
