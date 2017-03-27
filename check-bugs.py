@@ -34,6 +34,19 @@ BZ_COMPONENT_BLACKLIST = ( 'HDFS', 'gluster-hadoop', 'gluster-hadoop-install',
 # working directory for the cloned git repositories
 REPO_DIR = os.getcwd()
 
+# global helper functions
+def isForQA(tag):
+    ON_QA_TAGS = ['qa', 'alpha', 'beta', 'rc']
+    for qa_tag in ON_QA_TAGS:
+        if re.search(qa_tag, tag):
+            return True
+
+def isDevelTag(tag):
+    DEVEL_TAGS = ['dev']
+    for devel_tag in DEVEL_TAGS:
+        if re.search(devel_tag, tag):
+            return True
+
 class GitRepo:
     def __init__(self, project, path):
         self.project = project
@@ -63,25 +76,48 @@ class GitRepo:
     def findTag(self, commit):
         os.chdir(self.path)
 
-        # all tags with the commit are returned in a { timestamp : hash } format
-        cmd = 'git tag --contains %s | xargs --no-run-if-empty -n1 git log -1 --format="%%ct %%H"' % commit
+        # all tags with the commit are returned
+        cmd = 'git tag --contains %s' % commit
         lines = subprocess.check_output(cmd, shell=True)
 
         if len(lines.strip()) == 0:
             # no tag contains this commit
             return None
 
-        tags = dict()
-        for l in lines.split('\n'):
-            if not l.strip():
-                break
-            (ts, hash) = l.split()
-            tags[int(ts)] = hash
+        # put all tags in a list
+        tags = lines.split('\n')
 
-        # sort on timestamps, and pick the most recent (hopefully a release)
-        ts = tags.keys()
-        ts.sort()
-        hash = tags[ts[-1]]
+        testing = dict()
+        releases = dict()
+
+        for tag in tags:
+            # get the commit time of the tag in { timestamp : hash } format
+            cmd = 'git log -1 --format="%%ct %%H" %s' % tag
+            line = subprocess.check_output(cmd, shell=True)
+
+            if len(line.strip()) == 0:
+                # BUG: no tag contains this commit, that is impossible?!
+                continue
+
+            (ts, hash) = line.split()
+            if isForQA(tag):
+                testing[int(ts)] = hash
+            elif not isDevelTag(tag):
+                releases[int(ts)] = hash
+
+        # sort on timestamps, and pick the oldest release
+        if releases:
+            ts = releases.keys()
+            ts.sort()
+            hash = releases[ts[0]]
+        elif testing:
+            # fallback to a tag for testing
+            ts = testing.keys()
+            ts.sort()
+            hash = testing[ts[0]]
+        else:
+            # weird, only devel tags, same as no tag at all
+            return None
 
         # this is expected to return only one line
         cmd = 'git describe --exact-match %s 2> /dev/null' % hash
@@ -125,18 +161,21 @@ class ChangeStatus:
         return (self.tag != None)
 
     def isForQA(self):
-        ON_QA_TAGS = ['qa', 'alpha', 'beta', 'rc']
-
         if not self.resolveTag():
             return False
-        for qa_tag in ON_QA_TAGS:
-            if re.search(qa_tag, self.tag):
-                return True
+        return isForQA(self.tag)
+
+    def isDevel(self):
+        if not self.resolveTag():
+            return False
+        return isDevelTag(self.tag)
 
     def isReleased(self):
         if not self.resolveTag():
             return False
         elif self.isForQA():
+            return False
+        elif self.isDevel():
             return False
         else:
             return True
@@ -313,6 +352,7 @@ bz = Bugzilla(url=BZ_URL)
 bzs = getOpenBugs(bz)
 #bzs = [bz.getbug(765051)]
 #bzs = [bz.getbug(841617)]
+#bzs = [bz.getbug(1153964)]
 #bzs = getByTracker(bz, 'glusterfs-3.7.0')
 
 bugs = list()
